@@ -21,9 +21,6 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Install legacy Expo CLI
-      run: npm install -g expo-cli@latest
-
     - name: Build project
       run: expo export --public-url https://michaeljohnpena.com
 
