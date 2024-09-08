@@ -22,7 +22,7 @@ jobs:
       run: npm ci
 
     - name: Build project
-      run: expo export --public-url https://michaeljohnpena.com
+      run: npx expo export --public-url https://michaeljohnpena.com
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
