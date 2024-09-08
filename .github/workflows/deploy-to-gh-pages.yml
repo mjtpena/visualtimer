@@ -16,17 +16,29 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18'  # Use Node.js 16 as it's supported by the legacy expo-cli
+        node-version: '18'
 
     - name: Install dependencies
       run: npm ci
 
-    - name: Build project
-      run: npm run deploy
+    - name: Configure Git
+      run: |
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email "github-actions-bot@users.noreply.github.com"
+
+    - name: Build and Deploy
+      run: |
+        git remote set-url origin https://git:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
+        npm run deploy
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Create CNAME file
+      run: echo "michaeljohnpena.com" > ./dist/CNAME
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./dist  # This is the default output directory for Expo export
-        cname: michaeljohnpena.com  # This will create a CNAME file in the gh-pages branch
+        publish_dir: ./dist
+        cname: michaeljohnpena.com
