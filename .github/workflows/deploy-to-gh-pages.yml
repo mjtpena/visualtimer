@@ -16,7 +16,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '16'  # Use Node.js 16 as it's supported by the legacy expo-cli
+        node-version: '18'  # Use Node.js 16 as it's supported by the legacy expo-cli
 
     - name: Install dependencies
       run: npm ci
@@ -25,10 +25,11 @@ jobs:
       run: npm install -g expo-cli@latest
 
     - name: Build project
-      run: expo export --public-url /${GITHUB_REPOSITORY#*/}
+      run: expo export --public-url https://michaeljohnpena.com
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./dist  # This is the default output directory for Expo export
+        cname: michaeljohnpena.com  # This will create a CNAME file in the gh-pages branch
