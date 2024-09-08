@@ -25,10 +25,10 @@ jobs:
       run: npm install -g expo-cli
 
     - name: Build project
-      run: expo export:web
+      run: expo export
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./web-build  # This is the default output directory for Expo web builds
+        publish_dir: ./dist  # This is the default output directory for Expo export
