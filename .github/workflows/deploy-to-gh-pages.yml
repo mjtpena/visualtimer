@@ -16,16 +16,16 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v3
       with:
-        node-version: '18'  # Adjust the Node.js version as needed
+        node-version: '16'  # Use Node.js 16 as it's supported by the legacy expo-cli
 
     - name: Install dependencies
       run: npm ci
 
-    - name: Install Expo CLI
-      run: npm install -g expo-cli
+    - name: Install legacy Expo CLI
+      run: npm install -g expo-cli@latest
 
     - name: Build project
-      run: expo export
+      run: expo export --public-url /${GITHUB_REPOSITORY#*/}
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3

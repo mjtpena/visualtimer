@@ -10,10 +10,11 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "lint": "expo lint",
-    "build": "expo export",
+    "build": "expo export --public-url /visualtimer",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
+  "homepage": "https://michaeljohnpena.com/visualtimer",
   "jest": {
     "preset": "jest-expo"
   },
