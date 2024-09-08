@@ -6,26 +6,29 @@ on:
       - main  # Set the branch you want to deploy from
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
 
     - name: Set up Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v3
       with:
         node-version: '18'  # Adjust the Node.js version as needed
 
     - name: Install dependencies
-      run: npm install
+      run: npm ci
+
+    - name: Install Expo CLI
+      run: npm install -g expo-cli
 
     - name: Build project
-      run: npm run build  # Adjust the build command as needed
+      run: expo export:web
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: ./build  # Adjust the output directory as needed
+        publish_dir: ./web-build  # This is the default output directory for Expo web builds
