@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "test": "jest --watchAll",
     "lint": "expo lint",
-    "build": "expo export --public-url /visualtimer",
+    "build": "expo export",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist"
   },
