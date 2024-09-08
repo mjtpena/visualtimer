@@ -35,9 +35,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Create CNAME file
-        run: echo "michaeljohnpena.com" > ./dist/CNAME
-
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
