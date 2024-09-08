@@ -21,17 +21,8 @@ jobs:
     - name: Install dependencies
       run: npm ci
 
-    - name: Configure Git
-      run: |
-        git config --global user.name "GitHub Actions Bot"
-        git config --global user.email "github-actions-bot@users.noreply.github.com"
-
-    - name: Build and Deploy
-      run: |
-        git remote set-url origin https://git:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git
-        npm run deploy
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    - name: Build
+      run: npm run build  # Assuming this builds your project into the ./dist directory
 
     - name: Create CNAME file
       run: echo "michaeljohnpena.com" > ./dist/CNAME
@@ -39,6 +30,6 @@ jobs:
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
+        personal_token: ${{ secrets.PAT }}  # Use PAT instead of GITHUB_TOKEN
         publish_dir: ./dist
         cname: michaeljohnpena.com
