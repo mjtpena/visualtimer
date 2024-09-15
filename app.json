@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.playtimerx.visualtimer"
     },
     "android": {
       "adaptiveIcon": {
@@ -31,6 +32,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a513c5ff-fa0d-4b48-995b-2bc1945bd5ba"
+      }
+    },
+    "owner": "playtimerx"
   }
 }
