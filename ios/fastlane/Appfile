@@ -1,0 +1,4 @@
+app_identifier(ENV.fetch("APP_IDENTIFIER", "com.datachain.visualtimer"))
+apple_id(ENV.fetch("ASC_USERNAME", "michael@datachainconsulting.com"))
+team_id(ENV.fetch("ASC_TEAM_ID", "6564A59YJ2"))
+itc_team_id(ENV.fetch("ASC_ITC_TEAM_ID", ENV.fetch("ASC_TEAM_ID", "6564A59YJ2")))

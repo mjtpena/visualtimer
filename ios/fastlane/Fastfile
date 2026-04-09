@@ -1,0 +1,262 @@
+default_platform(:ios)
+require "shellwords"
+
+APP_IDENTIFIER = ENV.fetch("APP_IDENTIFIER", "com.datachain.visualtimer")
+ASC_USERNAME = ENV.fetch("ASC_USERNAME", "michael@datachainconsulting.com")
+ASC_TEAM_ID = ENV.fetch("ASC_TEAM_ID", "6564A59YJ2")
+ASC_ITC_TEAM_ID = ENV.fetch("ASC_ITC_TEAM_ID", ASC_TEAM_ID)
+ASC_KEY_ID = ENV.fetch("ASC_KEY_ID", "YYHR35NSUL")
+ASC_ISSUER_ID = ENV.fetch("ASC_ISSUER_ID", "8dbcdb9e-29bf-49f7-974c-7a16f3b80bdd")
+ASC_KEY_PATH = ENV.fetch("ASC_KEY_PATH", "~/.appstoreconnect/private_keys/AuthKey_#{ASC_KEY_ID}.p8")
+APP_NAME = ENV.fetch("APP_NAME", "VisualTimer: Countdown Clock")
+APP_SKU = ENV.fetch("APP_SKU", "DATACHAIN-VISUALTIMER-001")
+APP_COPYRIGHT = ENV.fetch("APP_COPYRIGHT", "2026 Michael John T. Peña")
+
+def app_store_connect_key!
+  key_path = File.expand_path(ASC_KEY_PATH)
+  UI.user_error!("ASC key not found at #{key_path}. Set ASC_KEY_PATH to a valid .p8 file.") unless File.exist?(key_path)
+
+  app_store_connect_api_key(
+    key_id: ASC_KEY_ID,
+    issuer_id: ASC_ISSUER_ID,
+    key_filepath: key_path
+  )
+end
+
+platform :ios do
+  # ──────────────────────────────────────────────
+  # Set Privacy (publish data usage declaration)
+  # ──────────────────────────────────────────────
+  desc "Publish app data usage declaration (no data collected)"
+  lane :set_privacy do
+    api_key = app_store_connect_key!
+
+    require 'spaceship'
+    app = Spaceship::ConnectAPI::App.find(APP_IDENTIFIER)
+    UI.message("App: #{app.name} (#{app.id})")
+
+    client = Spaceship::ConnectAPI.client
+
+    begin
+      # Use the Tunes API client to publish data usage declaration
+      tunes_client = Spaceship::ConnectAPI::Client.instance_variable_get(:@clients)&.dig(:tunes) || 
+                     Spaceship::ConnectAPI.client.instance_variable_get(:@tunes_client)
+      
+      if tunes_client
+        body = {
+          data: {
+            type: "appDataUsagePublications",
+            relationships: {
+              app: { data: { type: "apps", id: app.id } }
+            }
+          }
+        }
+        resp = tunes_client.post("appDataUsagePublications", body)
+        UI.success("Published app data usage declaration!")
+      else
+        # Fallback: use raw HTTP request via the token
+        require 'net/http'
+        uri = URI("https://api.appstoreconnect.apple.com/v1/appDataUsagePublications")
+        http = Net::HTTP.new(uri.host, uri.port)
+        http.use_ssl = true
+        req = Net::HTTP::Post.new(uri)
+        req["Authorization"] = "Bearer #{Spaceship::ConnectAPI.token.text}"
+        req["Content-Type"] = "application/json"
+        req.body = {
+          data: {
+            type: "appDataUsagePublications",
+            relationships: {
+              app: { data: { type: "apps", id: app.id } }
+            }
+          }
+        }.to_json
+        resp = http.request(req)
+        if resp.code.to_i < 400
+          UI.success("Published app data usage declaration!")
+        else
+          UI.important("HTTP #{resp.code}: #{resp.body[0..200]}")
+        end
+      end
+    rescue => e
+      UI.important("Error: #{e.class}: #{e.message[0..300]}")
+    end
+  end
+
+  # ──────────────────────────────────────────────
+  # Build
+  # ──────────────────────────────────────────────
+  desc "Build for App Store distribution"
+  lane :build do
+    api_key = app_store_connect_key!
+    auth_key_path = Shellwords.escape(File.expand_path(ASC_KEY_PATH))
+
+    build_number = Time.now.strftime("%Y%m%d%H%M")
+
+    set_info_plist_value(
+      path: "VisualTimer/Resources/Info.plist",
+      key: "CFBundleVersion",
+      value: build_number
+    )
+
+    build_app(
+      project: "VisualTimer.xcodeproj",
+      scheme: "VisualTimer",
+      export_method: "app-store",
+      destination: "generic/platform=iOS",
+      xcargs: "-allowProvisioningUpdates -authenticationKeyPath #{auth_key_path} -authenticationKeyID #{ASC_KEY_ID} -authenticationKeyIssuerID #{ASC_ISSUER_ID} DEVELOPMENT_TEAM=#{ASC_TEAM_ID}",
+      output_directory: "./build",
+      output_name: "VisualTimer.ipa"
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # TestFlight (Internal)
+  # ──────────────────────────────────────────────
+  desc "Build and upload to TestFlight for internal testing"
+  lane :beta do
+    build
+
+    api_key = app_store_connect_key!
+
+    begin
+      create_app_online(
+        username: ASC_USERNAME,
+        app_identifier: APP_IDENTIFIER,
+        app_name: APP_NAME,
+        language: "English",
+        app_version: "1.0.0",
+        sku: APP_SKU,
+        team_id: ASC_TEAM_ID,
+        itc_team_id: ASC_ITC_TEAM_ID
+      )
+    rescue => e
+      UI.important("create_app_online skipped (app may already exist): #{e.message}")
+    end
+
+    upload_to_testflight(
+      api_key: api_key,
+      distribute_external: false,
+      notify_external_testers: false,
+      changelog: "Latest build with improvements and bug fixes."
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # Screenshots
+  # ──────────────────────────────────────────────
+  desc "Upload screenshots to App Store Connect"
+  lane :screenshots do
+    api_key = app_store_connect_key!
+
+    upload_to_app_store(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      screenshots_path: "./fastlane/screenshots",
+      skip_binary_upload: true,
+      skip_metadata: true,
+      overwrite_screenshots: true,
+      submit_for_review: false,
+      run_precheck_before_submit: false,
+      force: true
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # Upload (no review)
+  # ──────────────────────────────────────────────
+  desc "Upload binary and metadata to App Store Connect (no review)"
+  lane :upload do
+    api_key = app_store_connect_key!
+
+    upload_to_app_store(
+      api_key: api_key,
+      app_identifier: APP_IDENTIFIER,
+      skip_binary_upload: true,
+      skip_metadata: false,
+      skip_screenshots: true,
+      submit_for_review: false,
+      automatic_release: false,
+      run_precheck_before_submit: false,
+      force: true,
+      copyright: APP_COPYRIGHT
+    )
+  end
+
+  # ──────────────────────────────────────────────
+  # Submit for Review
+  # ──────────────────────────────────────────────
+  desc "Submit current build for App Store review"
+  lane :submit do
+    api_key = app_store_connect_key!
+    app_version = get_version_number(xcodeproj: "VisualTimer.xcodeproj", target: "VisualTimer")
+
+    begin
+      submission_script = File.expand_path("submit_for_review.rb", __dir__)
+      sh(
+        {
+          "ASC_KEY_ID" => ASC_KEY_ID,
+          "ASC_ISSUER_ID" => ASC_ISSUER_ID,
+          "ASC_KEY_PATH" => File.expand_path(ASC_KEY_PATH),
+          "APP_BUNDLE_ID" => APP_IDENTIFIER,
+          "APP_VERSION_STRING" => app_version
+        },
+        "ruby #{Shellwords.escape(submission_script)}"
+      )
+      UI.success("✅ Submitted for App Store review!")
+    rescue => e
+      UI.user_error!("App Store submission failed: #{e.message}")
+    end
+  end
+
+  # ──────────────────────────────────────────────
+  # Release (full pipeline)
+  # ──────────────────────────────────────────────
+  desc "Full release: build → TestFlight → metadata → submit"
+  lane :release do
+    build
+
+    api_key = app_store_connect_key!
+    app_version = get_version_number(xcodeproj: "VisualTimer.xcodeproj", target: "VisualTimer")
+
+    upload_to_testflight(
+      api_key: api_key,
+      distribute_external: false,
+      notify_external_testers: false,
+      changelog: "New build - see App Store release notes for details."
+    )
+
+    begin
+      upload_to_app_store(
+        api_key: api_key,
+        app_identifier: APP_IDENTIFIER,
+        skip_binary_upload: true,
+        skip_metadata: false,
+        skip_screenshots: true,
+        submit_for_review: false,
+        automatic_release: false,
+        run_precheck_before_submit: false,
+        force: true,
+        copyright: APP_COPYRIGHT
+      )
+    rescue => e
+      UI.important("⚠️  Metadata upload skipped: #{e.message.split('.').first}")
+    end
+
+    begin
+      submission_script = File.expand_path("submit_for_review.rb", __dir__)
+      sh(
+        {
+          "ASC_KEY_ID" => ASC_KEY_ID,
+          "ASC_ISSUER_ID" => ASC_ISSUER_ID,
+          "ASC_KEY_PATH" => File.expand_path(ASC_KEY_PATH),
+          "APP_BUNDLE_ID" => APP_IDENTIFIER,
+          "APP_VERSION_STRING" => app_version
+        },
+        "ruby #{Shellwords.escape(submission_script)}"
+      )
+      UI.success("✅ Submitted for App Store review!")
+    rescue => e
+      UI.user_error!("App Store submission failed: #{e.message}")
+    end
+  end
+end

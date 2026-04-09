@@ -1,0 +1,1 @@
+VisualTimer is a beautiful visual countdown timer featuring an analog clock face display. Set your timer with minutes and seconds, watch the colorful arc count down, and hear audio cues at key moments. Features include dark/light mode, resizable clock, flip/mirror display, and customizable sound.

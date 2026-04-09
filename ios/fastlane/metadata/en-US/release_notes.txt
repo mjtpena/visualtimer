@@ -1,0 +1,1 @@
+Visual countdown timer with analog clock face, dark mode, audio feedback, and resizable display.
