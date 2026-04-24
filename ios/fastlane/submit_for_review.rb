@@ -83,8 +83,27 @@ version = if version_filter && !version_filter.empty?
           end
 
 unless version
-  suffix = version_filter ? " for #{version_filter}" : ''
-  abort("No App Store version found#{suffix}.")
+  # Version doesn't exist yet — create it via the API
+  create_version_string = version_filter || '1.0.0'
+  puts "No App Store version found for #{create_version_string} — creating it..."
+  cv_code, cv_data = call(:post, '/v1/appStoreVersions', {
+    data: {
+      type: 'appStoreVersions',
+      attributes: {
+        platform: PLATFORM,
+        versionString: create_version_string
+      },
+      relationships: {
+        app: { data: { type: 'apps', id: APP_ID } }
+      }
+    }
+  })
+  unless success?(cv_code)
+    log_failure("Create appStoreVersion #{create_version_string}", cv_code, cv_data)
+    exit 1
+  end
+  version = cv_data['data']
+  puts "✅ Created App Store version #{create_version_string}"
 end
 
 version_id     = version['id']
