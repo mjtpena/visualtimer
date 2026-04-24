@@ -177,7 +177,7 @@ final class TimerViewModel: ObservableObject {
         UNUserNotificationCenter.current().removeAllPendingNotificationRequests() // P1-04
     }
 
-    private func tick() {
+    func tick() {
         guard timeLeft > 0 else { return }
         timeLeft -= 1
 

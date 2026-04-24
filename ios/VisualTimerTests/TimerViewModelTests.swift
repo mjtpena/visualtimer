@@ -169,18 +169,30 @@ final class TimerViewModelTests: XCTestCase {
         }
     }
 
-    // P1-03: verify tick sound boundary conditions
-    func testTickSoundLogic() {
-        // last-10-second countdown boundary
-        XCTAssertTrue(10 <= 10)  // plays tick at 10s
-        XCTAssertTrue(1 <= 10)   // plays tick at 1s
-        XCTAssertFalse(11 <= 10) // silent at 11s
+    // P1-03: verify actual tick() behaviour on ViewModel state
+    func testTickDecrementsTimeLeft() {
+        let vm = TimerViewModel()
+        vm.inputMinutes = "1"
+        vm.setTime()           // timeLeft = 60
+        vm.tick()
+        XCTAssertEqual(vm.timeLeft, 59)
+    }
 
-        // every-5-minute loud tick boundary
-        XCTAssertTrue(300 % 300 == 0)  // loud tick at 5min
-        XCTAssertTrue(600 % 300 == 0)  // loud tick at 10min
-        XCTAssertFalse(299 % 300 == 0) // silent at 299s
-        XCTAssertFalse(1 % 300 == 0)   // silent at 1s (covered by <=10 branch instead)
+    func testTickCompletionSetsIsRunningFalse() {
+        let vm = TimerViewModel()
+        vm.inputSeconds = "1"
+        vm.setTime()           // timeLeft = 1
+        vm.isRunning = true
+        vm.tick()              // timeLeft → 0, triggers completion
+        XCTAssertEqual(vm.timeLeft, 0)
+        XCTAssertFalse(vm.isRunning)
+    }
+
+    func testTickIsNoOpWhenTimeLeftIsZero() {
+        let vm = TimerViewModel()
+        // timeLeft starts at 0 — tick() guard fires, nothing changes
+        vm.tick()
+        XCTAssertEqual(vm.timeLeft, 0)
     }
 
     // P0-04: setTime clamps to 3600 seconds
