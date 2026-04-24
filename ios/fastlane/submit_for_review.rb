@@ -117,7 +117,12 @@ s_code, submissions = call(
   "/v1/apps/#{APP_ID}/reviewSubmissions?filter%5Bplatform%5D=#{PLATFORM}&limit=50&fields%5BreviewSubmissions%5D=state,submittedDate"
 )
 if success?(s_code)
-  cancellable_states = %w[WAITING_FOR_REVIEW IN_REVIEW UNRESOLVED_ISSUES]
+  # Cancel any submission that isn't already in a terminal state
+  terminal_states    = %w[COMPLETE CANCELLED]
+  cancellable_states = submissions.fetch('data', [])
+                                  .map { |s| s.dig('attributes', 'state') }
+                                  .uniq
+                                  .reject { |st| terminal_states.include?(st) }
   submissions.fetch('data', []).each do |submission|
     state  = submission.dig('attributes', 'state')
     next unless cancellable_states.include?(state)
