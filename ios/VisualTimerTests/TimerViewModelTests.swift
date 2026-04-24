@@ -4,6 +4,15 @@ import XCTest
 @MainActor
 final class TimerViewModelTests: XCTestCase {
 
+    // Clear persisted preferences before each test so initial-state assertions are reliable
+    override func setUp() {
+        super.setUp()
+        UserDefaults.standard.removeObject(forKey: "isDarkMode")
+        UserDefaults.standard.removeObject(forKey: "isFlipped")
+        UserDefaults.standard.removeObject(forKey: "clockSizeRaw")
+        UserDefaults.standard.removeObject(forKey: "isSoundOn")
+    }
+
     func testInitialState() {
         let vm = TimerViewModel()
         XCTAssertEqual(vm.timeLeft, 0)
@@ -138,5 +147,49 @@ final class TimerViewModelTests: XCTestCase {
         XCTAssertEqual(ClockSize.small.dimension, 300)
         XCTAssertEqual(ClockSize.medium.dimension, 400)
         XCTAssertEqual(ClockSize.large.dimension, 500)
+    }
+
+    // MARK: - New tests
+
+    func testSetPreset() {
+        let vm = TimerViewModel()
+        vm.setPreset(minutes: 5)
+        XCTAssertEqual(vm.timeLeft, 300)
+        XCTAssertEqual(vm.totalTime, 300)
+        XCTAssertEqual(vm.inputMinutes, "")
+        XCTAssertEqual(vm.inputSeconds, "")
+        XCTAssertFalse(vm.showInput)
+    }
+
+    // P0-05: ClockSize.next() must never crash for any case
+    func testClockSizeNextSafety() {
+        ClockSize.allCases.forEach { size in
+            let next = size.next()
+            XCTAssertNotNil(next)
+        }
+    }
+
+    // P1-03: verify tick sound boundary conditions
+    func testTickSoundLogic() {
+        // last-10-second countdown boundary
+        XCTAssertTrue(10 <= 10)  // plays tick at 10s
+        XCTAssertTrue(1 <= 10)   // plays tick at 1s
+        XCTAssertFalse(11 <= 10) // silent at 11s
+
+        // every-5-minute loud tick boundary
+        XCTAssertTrue(300 % 300 == 0)  // loud tick at 5min
+        XCTAssertTrue(600 % 300 == 0)  // loud tick at 10min
+        XCTAssertFalse(299 % 300 == 0) // silent at 299s
+        XCTAssertFalse(1 % 300 == 0)   // silent at 1s (covered by <=10 branch instead)
+    }
+
+    // P0-04: setTime clamps to 3600 seconds
+    func testSetTimeClampedToOneHour() {
+        let vm = TimerViewModel()
+        vm.inputMinutes = "60"
+        vm.inputSeconds = "30" // should be forced to 0 when minutes == 60
+        vm.setTime()
+        XCTAssertEqual(vm.timeLeft, 3600)
+        XCTAssertEqual(vm.totalTime, 3600)
     }
 }

@@ -1,1 +1,11 @@
-Visual countdown timer with analog clock face, dark mode, audio feedback, and resizable display.
+Version 1.1.0 brings significant reliability and usability improvements:
+
+• Quick-preset buttons (1, 5, 10, 25 min) — start a timer in one tap
+• Background timer drift fixed — the clock stays accurate even when you switch apps
+• Local notifications — get alerted when your timer ends, even in the background
+• Haptic feedback on timer completion
+• Smarter audio — ticks only in the last 10 seconds and at 5-minute marks (no more constant ticking)
+• Arc now scales correctly to any duration, not just 60-minute sessions
+• App preferences (theme, size, sound, flip) now persist across launches
+• VoiceOver accessibility labels added throughout
+• Stability improvements and crash fixes

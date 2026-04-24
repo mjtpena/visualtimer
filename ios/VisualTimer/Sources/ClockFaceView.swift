@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ClockFaceView: View {
     let timeLeft: Int
+    let totalTime: Int      // P1-02: dynamic scale instead of hardcoded 3600
     let clockSize: CGFloat
     let timerRadius: CGFloat
     let borderWidth: CGFloat
@@ -39,18 +40,27 @@ struct ClockFaceView: View {
             context.fill(outerCircle, with: .color(fillColor))
             context.stroke(outerCircle, with: .color(strokeColor), lineWidth: borderWidth)
 
-            // Arc (time remaining)
-            if timeLeft > 0 {
-                let startAngle = Angle.degrees(-90)
-                let endAngle = Angle.degrees(Double(timeLeft) / 3600.0 * 360.0 - 90)
-
-                var arcPath = Path()
-                arcPath.move(to: center)
-                arcPath.addArc(center: center, radius: arcRadius,
-                              startAngle: startAngle, endAngle: endAngle,
-                              clockwise: true)
-                arcPath.closeSubpath()
-                context.fill(arcPath, with: .color(arcColor))
+            // P1-02 + P0-02: arc using totalTime scale; full-circle fix when fraction ≥ 0.9999
+            if timeLeft > 0 && totalTime > 0 {
+                let fraction = Double(timeLeft) / Double(totalTime)
+                if fraction >= 0.9999 {
+                    // P0-02: draw a complete ellipse to avoid degenerate arc (start == end)
+                    let fullArc = Path(ellipseIn: CGRect(
+                        x: cx - arcRadius, y: cy - arcRadius,
+                        width: arcRadius * 2, height: arcRadius * 2
+                    ))
+                    context.fill(fullArc, with: .color(arcColor))
+                } else {
+                    let startAngle = Angle.degrees(-90)
+                    let endAngle = Angle.degrees(fraction * 360.0 - 90)
+                    var arcPath = Path()
+                    arcPath.move(to: center)
+                    arcPath.addArc(center: center, radius: arcRadius,
+                                  startAngle: startAngle, endAngle: endAngle,
+                                  clockwise: true)
+                    arcPath.closeSubpath()
+                    context.fill(arcPath, with: .color(arcColor))
+                }
             }
 
             // Minute marks
@@ -90,9 +100,10 @@ struct ClockFaceView: View {
                 context.draw(resolvedText, at: CGPoint(x: isFlipped ? clockSize - nx : nx, y: ny), anchor: .center)
             }
 
-            // Clock hand
-            if timeLeft > 0 {
-                let handAngle = Double(timeLeft) / 3600.0 * 360.0 - 90.0
+            // P1-02: clock hand uses totalTime scale
+            if timeLeft > 0 && totalTime > 0 {
+                let fraction = Double(timeLeft) / Double(totalTime)
+                let handAngle = fraction * 360.0 - 90.0
                 let handRad = handAngle * .pi / 180.0
                 let handLength = timerRadius - 40
                 let hx = cx + handLength * cos(handRad)
@@ -113,5 +124,6 @@ struct ClockFaceView: View {
         }
         .frame(width: clockSize, height: clockSize)
         .scaleEffect(x: isFlipped ? -1 : 1, y: 1)
+        .accessibilityHidden(true) // P2-01: decorative canvas, VoiceOver reads the digital text
     }
 }

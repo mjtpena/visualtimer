@@ -1,1 +1,1 @@
-Timer, Countdown, Clock, Visual, Analog
+timer,countdown,pomodoro,focus,clock,analog,work,productivity,visual,alarm,interval,kitchen,classroom

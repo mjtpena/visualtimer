@@ -55,6 +55,14 @@ Upload screenshots to App Store Connect
 
 Upload binary and metadata to App Store Connect (no review)
 
+### ios testflight
+
+```sh
+[bundle exec] fastlane ios testflight
+```
+
+Upload existing IPA to TestFlight and add internal tester
+
 ### ios submit
 
 ```sh

@@ -6,9 +6,21 @@ final class AudioManager: ObservableObject {
     private var loudTickPlayer: AVAudioPlayer?
     private var timerEndPlayer: AVAudioPlayer?
 
-    @Published var isSoundOn: Bool = true
+    // P1-01: persisted via UserDefaults; defaults to true on first run
+    @Published var isSoundOn: Bool = UserDefaults.standard.object(forKey: "isSoundOn") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(isSoundOn, forKey: "isSoundOn") }
+    }
 
     func loadSounds() {
+        // P0-01: idempotent guard
+        guard tickPlayer == nil else { return }
+        // P0-01: configure AVAudioSession before creating players
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: .mixWithOthers)
+            try AVAudioSession.sharedInstance().setActive(true)
+        } catch {
+            print("AudioSession error: \(error)")
+        }
         tickPlayer = loadSound(named: "tick", ext: "wav")
         loudTickPlayer = loadSound(named: "loud-tick", ext: "wav")
         timerEndPlayer = loadSound(named: "timer", ext: "wav")

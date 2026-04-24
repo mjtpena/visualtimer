@@ -1,7 +1,11 @@
 import Foundation
 import Combine
+import SwiftUI
+import UIKit
+import UserNotifications
 
-enum ClockSize: CaseIterable {
+// P1-01: String rawValue for AppStorage persistence
+enum ClockSize: String, CaseIterable {
     case small, medium, large
 
     var dimension: CGFloat {
@@ -12,9 +16,10 @@ enum ClockSize: CaseIterable {
         }
     }
 
+    // P0-05: guard against missing index instead of force-unwrap
     func next() -> ClockSize {
         let all = ClockSize.allCases
-        let idx = all.firstIndex(of: self)!
+        guard let idx = all.firstIndex(of: self) else { return .medium }
         return all[(idx + 1) % all.count]
     }
 }
@@ -26,13 +31,29 @@ final class TimerViewModel: ObservableObject {
     @Published var isRunning: Bool = false
     @Published var inputMinutes: String = ""
     @Published var inputSeconds: String = ""
-    @Published var isDarkMode: Bool = false
     @Published var showInput: Bool = true
-    @Published var clockSize: ClockSize = .medium
-    @Published var isFlipped: Bool = false
+
+    // P1-01: user preferences persisted to UserDefaults
+    @Published var isDarkMode: Bool = UserDefaults.standard.bool(forKey: "isDarkMode") {
+        didSet { UserDefaults.standard.set(isDarkMode, forKey: "isDarkMode") }
+    }
+    @Published var isFlipped: Bool = UserDefaults.standard.bool(forKey: "isFlipped") {
+        didSet { UserDefaults.standard.set(isFlipped, forKey: "isFlipped") }
+    }
+    @Published private var clockSizeRaw: String =
+        UserDefaults.standard.string(forKey: "clockSizeRaw") ?? ClockSize.medium.rawValue {
+        didSet { UserDefaults.standard.set(clockSizeRaw, forKey: "clockSizeRaw") }
+    }
+
+    var clockSize: ClockSize {
+        get { ClockSize(rawValue: clockSizeRaw) ?? .medium }
+        set { clockSizeRaw = newValue.rawValue }
+    }
 
     let audioManager = AudioManager()
     private var timer: Timer?
+    private var backgroundEntryDate: Date?      // P0-03
+    private var showInputWorkItem: DispatchWorkItem? // P2-03
 
     var clockDimension: CGFloat { clockSize.dimension }
     var timerRadius: CGFloat { clockDimension / 2 - 20 }
@@ -50,6 +71,7 @@ final class TimerViewModel: ObservableObject {
     }
 
     func reset() {
+        cancelShowInputDelay() // P2-03
         stopTimer()
         isRunning = false
         timeLeft = 0
@@ -59,11 +81,22 @@ final class TimerViewModel: ObservableObject {
 
     func setTime() {
         let minutes = Int(inputMinutes) ?? 0
-        let seconds = Int(inputSeconds) ?? 0
-        let total = minutes * 60 + seconds
+        // P0-04: if minutes == 60, force seconds to 0 to stay within 3600s
+        let seconds = (minutes >= 60) ? 0 : (Int(inputSeconds) ?? 0)
+        // P0-04: clamp total to 3600 seconds (60 minutes)
+        let total = min(minutes * 60 + seconds, 3600)
         guard total > 0 else { return }
         timeLeft = total
         totalTime = total
+        inputMinutes = ""
+        inputSeconds = ""
+        showInput = false
+    }
+
+    // P1-06: quick-preset support
+    func setPreset(minutes: Int) {
+        timeLeft = minutes * 60
+        totalTime = minutes * 60
         inputMinutes = ""
         inputSeconds = ""
         showInput = false
@@ -100,19 +133,48 @@ final class TimerViewModel: ObservableObject {
         return String(format: "%02d:%02d", mins, secs)
     }
 
+    // P0-03: background drift compensation
+    func handleScenePhase(_ phase: ScenePhase) {
+        switch phase {
+        case .background:
+            guard isRunning else { return }
+            backgroundEntryDate = Date()
+            scheduleLocalNotification()
+        case .active:
+            guard let entryDate = backgroundEntryDate, isRunning else { return }
+            let elapsed = Int(Date().timeIntervalSince(entryDate))
+            timeLeft = max(timeLeft - elapsed, 0)
+            backgroundEntryDate = nil
+            UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+            if timeLeft == 0 {
+                stopTimer()
+                isRunning = false
+                audioManager.playTimerEnd()
+                let generator = UINotificationFeedbackGenerator()
+                generator.notificationOccurred(.success)
+                scheduleDelayedShowInput()
+            }
+        default:
+            break
+        }
+    }
+
     // MARK: - Timer
 
+    // P2-02: use .common RunLoop mode so timer fires during scroll/interactions
     private func startTimer() {
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.tick()
-            }
+        scheduleLocalNotification() // P1-04
+        let t = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.tick() }
         }
+        RunLoop.main.add(t, forMode: .common)
+        timer = t
     }
 
     private func stopTimer() {
         timer?.invalidate()
         timer = nil
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests() // P1-04
     }
 
     private func tick() {
@@ -122,12 +184,57 @@ final class TimerViewModel: ObservableObject {
         if timeLeft == 0 {
             stopTimer()
             isRunning = false
-            showInput = true
             audioManager.playTimerEnd()
+            // P1-05: haptic feedback on completion
+            let generator = UINotificationFeedbackGenerator()
+            generator.notificationOccurred(.success)
+            // P2-03: delayed transition back to input (avoids abrupt switch)
+            scheduleDelayedShowInput()
         } else if timeLeft % 300 == 0 {
+            // P1-03: loud tick every 5 minutes
             audioManager.playLoudTick()
-        } else {
+        } else if timeLeft <= 10 {
+            // P1-03: tick only in last 10-second countdown
             audioManager.playTick()
+        }
+        // else: silent
+    }
+
+    // MARK: - Helpers
+
+    // P2-03
+    private func scheduleDelayedShowInput() {
+        cancelShowInputDelay()
+        let workItem = DispatchWorkItem { [weak self] in
+            self?.showInput = true
+        }
+        showInputWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: workItem)
+    }
+
+    private func cancelShowInputDelay() {
+        showInputWorkItem?.cancel()
+        showInputWorkItem = nil
+    }
+
+    // P1-04
+    private func scheduleLocalNotification() {
+        guard timeLeft > 0 else { return }
+        UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
+        let content = UNMutableNotificationContent()
+        content.title = "VisualTimer"
+        content.body = "⏰ Your timer has finished!"
+        content.sound = .default
+        let trigger = UNTimeIntervalNotificationTrigger(
+            timeInterval: TimeInterval(timeLeft), repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "timer-end", content: content, trigger: trigger)
+        Task {
+            do {
+                try await UNUserNotificationCenter.current().add(request)
+            } catch {
+                print("Notification scheduling error: \(error)")
+            }
         }
     }
 }

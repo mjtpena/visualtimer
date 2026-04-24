@@ -10,17 +10,17 @@
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="1: app_store_connect_api_key" time="0.002936">
+      <testcase classname="fastlane.lanes" name="1: app_store_connect_api_key" time="0.002577">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="2: get_version_number" time="0.029456">
+      <testcase classname="fastlane.lanes" name="2: get_version_number" time="0.033495">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="3: ASC_KEY_ID=YYHR35NSUL ASC_ISSUER_ID=8dbcdb9e-29bf-49f7-974c-7a16f3b80bdd ASC_KEY_PATH=/Users/mjtpena/.appstoreconnect/private_keys/AuthKey_YYHR35NSUL.p8 APP_BUNDLE_ID=com.datachain.visualtimer APP_VERSION_STRING=1.0.0 ruby /Users/mjtpena/dev/visualtimer/ios/fastlane/submit_for_review.rb" time="13.032764">
+      <testcase classname="fastlane.lanes" name="3: ASC_KEY_ID=YYHR35NSUL ASC_ISSUER_ID=8dbcdb9e-29bf-49f7-974c-7a16f3b80bdd ASC_KEY_PATH=/Users/mjtpena/.appstoreconnect/private_keys/AuthKey_YYHR35NSUL.p8 APP_BUNDLE_ID=com.datachain.visualtimer APP_VERSION_STRING=1.0.0 ruby /Users/mjtpena/dev/visualtimer/ios/fastlane/submit_for_review.rb" time="12.450891">
         
       </testcase>
     
