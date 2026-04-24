@@ -201,23 +201,53 @@ else
   log_failure('Fetch localizations', l_code, locs)
 end
 
-puts '\n=== Create Review Submission ==='
-r_code, created = call(:post, '/v1/reviewSubmissions', {
-  data: {
-    type: 'reviewSubmissions',
-    attributes: { platform: PLATFORM },
-    relationships: {
-      app: { data: { type: 'apps', id: APP_ID } }
-    }
-  }
-})
+puts '\n=== Find or Create Review Submission ==='
+# First: try to reuse any existing READY_FOR_REVIEW submission to avoid
+# hitting Apple's concurrent submission limit of 5.
+submission_id = nil
+rs_code, rs_data = call(
+  :get,
+  "/v1/apps/#{APP_ID}/reviewSubmissions?filter%5Bplatform%5D=#{PLATFORM}&limit=50&fields%5BreviewSubmissions%5D=state"
+)
+if success?(rs_code)
+  rs_data.fetch('data', []).each do |s|
+    state = s.dig('attributes', 'state')
+    puts "  submission #{s['id']} state=#{state}"
+    if state == 'READY_FOR_REVIEW' && submission_id.nil?
+      submission_id = s['id']
+      puts "  → Reusing existing READY_FOR_REVIEW submission #{submission_id}"
+    end
+  end
+end
 
-submission_id = created.dig('data', 'id') if success?(r_code)
+# If no reusable submission, create a new one with up to 4 retries (10 s apart).
 unless submission_id
-  log_failure('Create reviewSubmission', r_code, created)
+  4.times do |attempt|
+    r_code, created = call(:post, '/v1/reviewSubmissions', {
+      data: {
+        type: 'reviewSubmissions',
+        attributes: { platform: PLATFORM },
+        relationships: {
+          app: { data: { type: 'apps', id: APP_ID } }
+        }
+      }
+    })
+    if success?(r_code)
+      submission_id = created.dig('data', 'id')
+      puts "✅ Created review submission #{submission_id}"
+      break
+    else
+      detail = Array(created.dig('errors')).map { |e| e['detail'] }.join('; ')
+      puts "Attempt #{attempt + 1}/4 failed: #{detail}"
+      sleep 10 unless attempt == 3
+    end
+  end
+end
+
+unless submission_id
+  log_failure('Find or create reviewSubmission', nil, 'All attempts exhausted')
   exit 1
 end
-puts "✅ Created review submission #{submission_id}"
 
 puts '\n=== Add Version To Submission ==='
 i_code, item = call(:post, '/v1/reviewSubmissionItems', {
@@ -229,7 +259,8 @@ i_code, item = call(:post, '/v1/reviewSubmissionItems', {
     }
   }
 })
-unless success?(i_code)
+# 409 means the item already exists in this submission — treat as success
+unless success?(i_code) || i_code.to_s == '409'
   log_failure('Create reviewSubmissionItem', i_code, item)
   exit 1
 end
