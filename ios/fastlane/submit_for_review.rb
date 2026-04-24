@@ -168,6 +168,34 @@ unless success?(a_code)
 end
 puts '✅ Build attached to App Store version'
 
+puts '\n=== Set whatsNew on Version Localizations ==='
+# App Store Connect requires whatsNew to be set before a version can enter review
+whats_new_file = File.expand_path('../../fastlane/metadata/en-US/release_notes.txt', __dir__)
+whats_new_text  = File.exist?(whats_new_file) ? File.read(whats_new_file).strip : "Bug fixes and performance improvements."
+puts "whatsNew source: #{File.exist?(whats_new_file) ? whats_new_file : 'default text'}"
+
+l_code, locs = call(:get, "/v1/appStoreVersions/#{version_id}/appStoreVersionLocalizations?fields%5BappStoreVersionLocalizations%5D=locale,whatsNew")
+if success?(l_code)
+  locs.fetch('data', []).each do |loc|
+    loc_id     = loc['id']
+    loc_locale = loc.dig('attributes', 'locale')
+    p_code, p_body = call(:patch, "/v1/appStoreVersionLocalizations/#{loc_id}", {
+      data: {
+        type: 'appStoreVersionLocalizations',
+        id:   loc_id,
+        attributes: { whatsNew: whats_new_text }
+      }
+    })
+    if success?(p_code)
+      puts "✅ whatsNew set for locale #{loc_locale}"
+    else
+      log_failure("Patch whatsNew for #{loc_locale}", p_code, p_body)
+    end
+  end
+else
+  log_failure('Fetch localizations', l_code, locs)
+end
+
 puts '\n=== Create Review Submission ==='
 r_code, created = call(:post, '/v1/reviewSubmissions', {
   data: {
