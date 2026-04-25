@@ -1,6 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TextInput, TouchableOpacity, Text, ViewStyle, TextStyle, PanResponder } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { View, StyleSheet, TextInput, TouchableOpacity, Text, ViewStyle, TextStyle } from 'react-native';
 import Svg, { Circle, G, Text as SvgText, Path, Line } from 'react-native-svg';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS } from 'react-native-reanimated';
 import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 
@@ -210,39 +212,29 @@ const VisualTimerScreen: React.FC = () => {
         ].join(' ');
     };
 
-    const handleClockDrag = (x: number, y: number): void => {
+    const handleClockDrag = useCallback((x: number, y: number): void => {
         const cx = CLOCK_SIZE / 2;
         const cy = CLOCK_SIZE / 2;
-        // Mirror x-axis when clock is flipped
         const dx = isFlipped ? cx - x : x - cx;
         const dy = y - cy;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        // Ignore touches inside the center hub or outside the rim
         if (distance < 30 || distance > TIMER_RADIUS + BORDER_WIDTH / 2) return;
-        // atan2 returns angle from positive x-axis; rotate so 0° = 12 o'clock clockwise
         const angleFromTop = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
         const seconds = Math.round((angleFromTop / 360) * 3600);
-        // Dragging all the way to 12 o'clock sets 60 minutes, not 0
         const newTime = seconds === 0 ? 3600 : seconds;
         setTimeLeft(newTime);
         setShowInput(false);
-    };
+    }, [CLOCK_SIZE, TIMER_RADIUS, BORDER_WIDTH, isFlipped]);
 
-    // Keep a ref to the latest handler so the PanResponder (created once) always calls fresh values
-    const handleClockDragRef = useRef(handleClockDrag);
-    handleClockDragRef.current = handleClockDrag;
-
-    const panResponder = useRef(
-        PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onPanResponderGrant: (evt) => {
-                handleClockDragRef.current(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
-            },
-            onPanResponderMove: (evt) => {
-                handleClockDragRef.current(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
-            },
+    // useMemo re-creates the gesture when handleClockDrag changes (i.e. when isFlipped or clock size changes)
+    const panGesture = useMemo(() => Gesture.Pan()
+        .onStart((evt) => {
+            runOnJS(handleClockDrag)(evt.x, evt.y);
         })
-    ).current;
+        .onUpdate((evt) => {
+            runOnJS(handleClockDrag)(evt.x, evt.y);
+        }),
+    [handleClockDrag]);
 
     const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number): { x: number; y: number } => {
         const angleInRadians = (angleInDegrees) * Math.PI / 180.0;
@@ -272,7 +264,8 @@ const VisualTimerScreen: React.FC = () => {
                     <Feather name={isDarkMode ? "sun" : "moon"} size={24} color={isDarkMode ? "#4DA6FF" : "black"} />
                 </TouchableOpacity>
             </View>
-            <View {...panResponder.panHandlers} style={{ width: CLOCK_SIZE, height: CLOCK_SIZE }}>
+            <GestureDetector gesture={panGesture}>
+            <Animated.View style={{ width: CLOCK_SIZE, height: CLOCK_SIZE }}>
             <Svg height={CLOCK_SIZE} width={CLOCK_SIZE}>
                 <G transform={isFlipped ? `scale(-1, 1) translate(${-CLOCK_SIZE}, 0)` : ''}>
                     <Circle
@@ -340,7 +333,8 @@ const VisualTimerScreen: React.FC = () => {
                     ))}
                 </G>
             </Svg>
-            </View>
+            </Animated.View>
+            </GestureDetector>
             <Text style={[styles.timerText, isDarkMode && styles.darkModeText]}>{formatTime(timeLeft)}</Text>
             <View style={styles.controls}>
                 {showInput && (
