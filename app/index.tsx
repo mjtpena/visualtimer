@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, TextInput, TouchableOpacity, Text, ViewStyle, TextStyle } from 'react-native';
+import { View, StyleSheet, TextInput, TouchableOpacity, Text, ViewStyle, TextStyle, PanResponder } from 'react-native';
 import Svg, { Circle, G, Text as SvgText, Path, Line } from 'react-native-svg';
 import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
@@ -182,18 +182,67 @@ const VisualTimerScreen: React.FC = () => {
     };
 
     const getArcPath = (): string => {
+        if (timeLeft <= 0) return '';
+        const r = TIMER_RADIUS - BORDER_WIDTH / 2;
+        const cx = CLOCK_SIZE / 2;
+        const cy = CLOCK_SIZE / 2;
+        // SVG cannot represent a full 360° arc as a single arc command — use two 180° arcs
+        if (timeLeft >= 3600) {
+            const top = polarToCartesian(cx, cy, r, -90);
+            const bottom = polarToCartesian(cx, cy, r, 90);
+            return [
+                'M', top.x, top.y,
+                'A', r, r, 0, 1, 0, bottom.x, bottom.y,
+                'A', r, r, 0, 1, 0, top.x, top.y,
+                'Z'
+            ].join(' ');
+        }
         const startAngle = -90;
         const endAngle = (360 * timeLeft) / 3600 - 90;
         const largeArcFlag = timeLeft > 1800 ? '1' : '0';
-        const start = polarToCartesian(CLOCK_SIZE / 2, CLOCK_SIZE / 2, TIMER_RADIUS - BORDER_WIDTH / 2, endAngle);
-        const end = polarToCartesian(CLOCK_SIZE / 2, CLOCK_SIZE / 2, TIMER_RADIUS - BORDER_WIDTH / 2, startAngle);
+        const start = polarToCartesian(cx, cy, r, endAngle);
+        const end = polarToCartesian(cx, cy, r, startAngle);
         return [
             'M', start.x, start.y,
-            'A', TIMER_RADIUS - BORDER_WIDTH / 2, TIMER_RADIUS - BORDER_WIDTH / 2, 0, largeArcFlag, 0, end.x, end.y,
-            'L', CLOCK_SIZE / 2, CLOCK_SIZE / 2,
+            'A', r, r, 0, largeArcFlag, 0, end.x, end.y,
+            'L', cx, cy,
             'Z'
         ].join(' ');
     };
+
+    const handleClockDrag = (x: number, y: number): void => {
+        const cx = CLOCK_SIZE / 2;
+        const cy = CLOCK_SIZE / 2;
+        // Mirror x-axis when clock is flipped
+        const dx = isFlipped ? cx - x : x - cx;
+        const dy = y - cy;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        // Ignore touches inside the center hub or outside the rim
+        if (distance < 30 || distance > TIMER_RADIUS + BORDER_WIDTH / 2) return;
+        // atan2 returns angle from positive x-axis; rotate so 0° = 12 o'clock clockwise
+        const angleFromTop = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+        const seconds = Math.round((angleFromTop / 360) * 3600);
+        // Dragging all the way to 12 o'clock sets 60 minutes, not 0
+        const newTime = seconds === 0 ? 3600 : seconds;
+        setTimeLeft(newTime);
+        setShowInput(false);
+    };
+
+    // Keep a ref to the latest handler so the PanResponder (created once) always calls fresh values
+    const handleClockDragRef = useRef(handleClockDrag);
+    handleClockDragRef.current = handleClockDrag;
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onPanResponderGrant: (evt) => {
+                handleClockDragRef.current(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+            },
+            onPanResponderMove: (evt) => {
+                handleClockDragRef.current(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
+            },
+        })
+    ).current;
 
     const polarToCartesian = (centerX: number, centerY: number, radius: number, angleInDegrees: number): { x: number; y: number } => {
         const angleInRadians = (angleInDegrees) * Math.PI / 180.0;
@@ -223,6 +272,7 @@ const VisualTimerScreen: React.FC = () => {
                     <Feather name={isDarkMode ? "sun" : "moon"} size={24} color={isDarkMode ? "#4DA6FF" : "black"} />
                 </TouchableOpacity>
             </View>
+            <View {...panResponder.panHandlers} style={{ width: CLOCK_SIZE, height: CLOCK_SIZE }}>
             <Svg height={CLOCK_SIZE} width={CLOCK_SIZE}>
                 <G transform={isFlipped ? `scale(-1, 1) translate(${-CLOCK_SIZE}, 0)` : ''}>
                     <Circle
@@ -285,11 +335,12 @@ const VisualTimerScreen: React.FC = () => {
                             fill={isDarkMode ? "#FFFFFF" : "#000000"}
                             transform={isFlipped ? `scale(-1, 1) translate(${-2 * (CLOCK_SIZE / 2 + (TIMER_RADIUS - 40) * Math.sin((i * 30) * Math.PI / 180))}, 0)` : ''}
                         >
-                            {i * 5}
+                            {i === 0 ? 60 : i * 5}
                         </SvgText>
                     ))}
                 </G>
             </Svg>
+            </View>
             <Text style={[styles.timerText, isDarkMode && styles.darkModeText]}>{formatTime(timeLeft)}</Text>
             <View style={styles.controls}>
                 {showInput && (
