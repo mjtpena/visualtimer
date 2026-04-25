@@ -115,6 +115,27 @@ final class TimerViewModel: ObservableObject {
         }
     }
 
+    // Drag-to-set: map drag position on clock face to a time value (0–3600 s)
+    func handleDrag(location: CGPoint, in size: CGFloat) {
+        guard !isRunning else { return }
+        let cx = Double(size / 2)
+        let cy = Double(size / 2)
+        var dx = Double(location.x) - cx
+        let dy = Double(location.y) - cy
+        if isFlipped { dx = -dx }
+
+        let distance = (dx * dx + dy * dy).squareRoot()
+        guard distance > 20 else { return } // ignore taps inside center hub
+
+        var angleDeg = atan2(dy, dx) * 180 / .pi
+        angleDeg = (angleDeg + 90 + 360).truncatingRemainder(dividingBy: 360)
+
+        let newTime = max(Int((angleDeg / 360.0 * 3600).rounded()), 1)
+        timeLeft = newTime
+        totalTime = newTime
+        showInput = false
+    }
+
     func toggleClockSize() {
         clockSize = clockSize.next()
     }

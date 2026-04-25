@@ -92,7 +92,7 @@ struct ClockFaceView: View {
                 let nx = cx + numberRadius * sin(rad)
                 let ny = cy - numberRadius * cos(rad)
 
-                let text = Text("\(i * 5)")
+                let text = Text(i == 0 ? "60" : "\(i * 5)")
                     .font(.system(size: clockSize / 15))
                     .foregroundColor(strokeColor)
 

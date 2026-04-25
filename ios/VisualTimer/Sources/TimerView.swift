@@ -56,6 +56,12 @@ struct TimerView: View {
                     isDarkMode: vm.isDarkMode,
                     isFlipped: vm.isFlipped
                 )
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            vm.handleDrag(location: value.location, in: vm.clockDimension)
+                        }
+                )
 
                 // Digital time display
                 Text(vm.formattedTime())
